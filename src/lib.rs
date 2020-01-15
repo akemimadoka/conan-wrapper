@@ -13,9 +13,9 @@ extern crate lazy_static;
 extern crate maplit;
 
 use regex::Regex;
+
 use std::collections::HashMap;
 use std::string::String;
-
 use std::process::Command;
 
 pub fn find_system_conan() -> Option<std::path::PathBuf> {
@@ -113,7 +113,7 @@ pub struct InstallArguments {
 }
 
 impl InstallArguments {
-    pub fn to_commandline_arguements(&self) -> Vec<String> {
+    pub fn to_commandline_arguments(&self) -> Vec<String> {
         let mut result = Vec::<String>::new();
 
         match &self.install_target {
@@ -301,16 +301,19 @@ fn test_install_arguments() {
         "build".into(),
     );
     builder
-        .envs(hashmap!("SomeEnv".into() => "SomeValue".into(),
-        "SomeEnv2".into() => "SomeValue2".into()))
+        .envs(hashmap!(
+            "SomeEnv".into() => "SomeValue".into(),
+            "SomeEnv2".into() => "SomeValue2".into()))
         .generators(vec![Generator::JSON])
-        .options(hashmap!("SomeOpt".into() => "SomeValue".into(),
-        "SomeOpt2".into() => "SomeValue2".into()))
-        .settings(hashmap!("SomeSetting".into() => "SomeValue".into(),
-        "SomeSetting2".into() => "SomeValue2".into()));
+        .options(hashmap!(
+            "SomeOpt".into() => "SomeValue".into(),
+            "SomeOpt2".into() => "SomeValue2".into()))
+        .settings(hashmap!(
+            "SomeSetting".into() => "SomeValue".into(),
+            "SomeSetting2".into() => "SomeValue2".into()));
     let arguments = builder.build();
     println!("{:?}", arguments);
-    println!("{:?}", arguments.to_commandline_arguements());
+    println!("{:?}", arguments.to_commandline_arguments());
 }
 
 pub fn create_install_command(
@@ -318,7 +321,7 @@ pub fn create_install_command(
     install_arguments: &InstallArguments,
 ) -> Command {
     let mut command = Command::new(conan_program);
-    command.args(install_arguments.to_commandline_arguements());
+    command.args(install_arguments.to_commandline_arguments());
     command
 }
 
@@ -359,32 +362,4 @@ impl ConanBuildInfo {
     pub fn create_from_json(json_content: &str) -> ConanBuildInfo {
         serde_json::from_str(json_content).unwrap()
     }
-}
-
-lazy_static! {
-    static ref CARGO_OS_TO_CONAN_OS: HashMap<&'static str, &'static str> = hashmap!(
-        "windows" => "Windows",
-        "linux" => "Linux",
-        "macos" => "Macos",
-        "android" => "Android",
-        "ios" => "iOS",
-        "freebsd" => "FreeBSD"
-    );
-    static ref CARGO_ARCH_TO_CONAN_ARCH: HashMap<&'static str, &'static str> = hashmap!(
-        "powerpc" => "ppc32",
-        "powerpc64" => "ppc64",
-        "arm" => "armv7",
-        "aarch64" => "armv8"
-    );
-}
-
-pub fn cargo_os_to_conan_os(os_name: &str) -> &str {
-    CARGO_OS_TO_CONAN_OS.get(os_name).unwrap_or(&os_name)
-}
-
-// TODO: Some arch contains endian information
-pub fn cargo_arch_to_conan_arch(arch_name: &str) -> &str {
-    CARGO_ARCH_TO_CONAN_ARCH
-        .get(arch_name)
-        .unwrap_or(&arch_name)
 }
