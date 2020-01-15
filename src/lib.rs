@@ -1,22 +1,16 @@
-extern crate regex;
-extern crate which;
-
-extern crate serde;
-extern crate serde_json;
-
-use serde::Deserialize;
-
 #[macro_use]
 extern crate lazy_static;
-
 #[macro_use]
 extern crate maplit;
 
+use serde::Deserialize;
 use regex::Regex;
-
 use std::collections::HashMap;
 use std::string::String;
 use std::process::Command;
+
+#[cfg(feature = "cargo")]
+pub mod cargo;
 
 pub fn find_system_conan() -> Option<std::path::PathBuf> {
     which::which("conan").ok()
