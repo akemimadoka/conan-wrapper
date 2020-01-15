@@ -3,34 +3,131 @@ extern crate lazy_static;
 #[macro_use]
 extern crate maplit;
 
-use serde::Deserialize;
 use regex::Regex;
+use serde::Deserialize;
 use std::collections::HashMap;
-use std::string::String;
 use std::process::Command;
+use std::string::String;
 
 #[cfg(feature = "cargo")]
 pub mod cargo;
 
-pub fn find_system_conan() -> Option<std::path::PathBuf> {
-    which::which("conan").ok()
+pub struct Conan {
+    pub path: std::path::PathBuf,
+}
+
+impl Conan {
+    pub fn new(conan_path: std::path::PathBuf) -> Conan {
+        Conan { path: conan_path }
+    }
+
+    pub fn find_system_conan() -> Option<Conan> {
+        if let Ok(conan_path) = which::which("conan") {
+            return Some(Conan { path: conan_path });
+        }
+
+        None
+    }
 }
 
 lazy_static! {
     static ref CONAN_VERSION_REGEX: Regex = Regex::new("Conan version ([\\d\\.]+)").unwrap();
+    static ref CONAN_REMOTE_REGEX: Regex = Regex::new("(\\S+) (\\S+) (True|False)").unwrap();
 }
 
-pub fn determine_conan_version(path: &std::path::Path) -> Option<String> {
-    let output = Command::new(path)
-        .arg("--version")
-        .output()
-        .expect(&format!(
-            "Cannot execute conan from path \"{}\"",
-            path.display()
-        ));
-    let output_string = String::from_utf8(output.stdout).ok()?;
-    let found_version = CONAN_VERSION_REGEX.captures(&output_string)?.get(1)?;
-    Some(found_version.as_str().into())
+#[derive(Debug)]
+pub struct Remote {
+    pub name: String,
+    pub url: String,
+    pub verify_ssl: Option<bool>,
+}
+
+impl Remote {
+    pub fn new(name: String, url: String) -> Remote {
+        Remote {
+            name,
+            url,
+            verify_ssl: None,
+        }
+    }
+}
+
+impl Conan {
+    pub fn determine_version(&self) -> Option<String> {
+        let output = Command::new(&self.path)
+            .arg("--version")
+            .output()
+            .expect(&format!(
+                "Cannot execute conan from path \"{:?}\"",
+                &self.path
+            ));
+        let output_string = String::from_utf8(output.stdout).ok()?;
+        let found_version = CONAN_VERSION_REGEX.captures(&output_string)?.get(1)?;
+        Some(found_version.as_str().into())
+    }
+
+    pub fn get_remote_list(&self) -> Option<Vec<Remote>> {
+        let output = Command::new(&self.path)
+            .arg("remote")
+            .arg("list")
+            .arg("--raw")
+            .output()
+            .expect(&format!(
+                "Cannot execute conan from path \"{:?}\"",
+                &self.path
+            ));
+
+        let output_string = String::from_utf8(output.stdout).ok()?;
+        let mut result = Vec::new();
+
+        for line in output_string.lines() {
+            let matched_remote = CONAN_REMOTE_REGEX.captures(&line)?;
+            result.push(Remote {
+                name: matched_remote.get(1)?.as_str().into(),
+                url: matched_remote.get(2)?.as_str().into(),
+                verify_ssl: Some(matched_remote.get(3)?.as_str() == "True"),
+            });
+        }
+
+        Some(result)
+    }
+
+    pub fn add_remote(&self, remote: &Remote, index: Option<u32>, force: bool) -> bool {
+        let mut command = Command::new(&self.path);
+        let mut arguments = vec!["remote".to_owned(), "add".to_owned()];
+        if let Some(index) = index {
+            arguments.push("-i".into());
+            arguments.push(index.to_string());
+        }
+        if force {
+            arguments.push("--force".into());
+        }
+        arguments.push(remote.name.clone());
+        arguments.push(remote.url.clone());
+
+        match remote.verify_ssl {
+            Some(true) => {
+                arguments.push("True".into());
+            }
+            Some(false) => {
+                arguments.push("False".into());
+            }
+            None => {}
+        }
+
+        command.spawn().unwrap().wait().is_ok()
+    }
+
+    pub fn remove_remote(&self, remote_name: &str) -> bool {
+        Command::new(&self.path)
+            .arg("remote")
+            .arg("remove")
+            .arg(remote_name)
+            .spawn()
+            .unwrap()
+            .wait()
+            .is_ok()
+    }
 }
 
 #[derive(Debug)]
@@ -310,13 +407,12 @@ fn test_install_arguments() {
     println!("{:?}", arguments.to_commandline_arguments());
 }
 
-pub fn create_install_command(
-    conan_program: &std::path::Path,
-    install_arguments: &InstallArguments,
-) -> Command {
-    let mut command = Command::new(conan_program);
-    command.args(install_arguments.to_commandline_arguments());
-    command
+impl Conan {
+    pub fn create_install_command(&self, install_arguments: &InstallArguments) -> Command {
+        let mut command = Command::new(&self.path);
+        command.args(install_arguments.to_commandline_arguments());
+        command
+    }
 }
 
 #[derive(Deserialize)]
@@ -355,5 +451,9 @@ pub struct ConanBuildInfo {
 impl ConanBuildInfo {
     pub fn create_from_json(json_content: &str) -> ConanBuildInfo {
         serde_json::from_str(json_content).unwrap()
+    }
+
+    pub fn create_from_json_reader(reader: impl std::io::Read) -> ConanBuildInfo {
+        serde_json::from_reader(reader).unwrap()
     }
 }

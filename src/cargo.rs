@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::env;
+use crate::ConanBuildInfo;
 
 lazy_static! {
     static ref CARGO_OS_TO_CONAN_OS: HashMap<&'static str, &'static str> = hashmap!(
@@ -44,4 +45,19 @@ pub fn auto_detect_settings_from_cargo() -> HashMap<String, String> {
     }
 
     result
+}
+
+#[cfg(feature = "cargo")]
+pub fn output_information_to_cargo(build_info: &ConanBuildInfo) {
+    for dependency in &build_info.dependencies {
+        for lib_path in &dependency.lib_paths {
+            println!("cargo:rustc-link-search=native={}", lib_path);
+        }
+        for lib in &dependency.libs {
+            println!("cargo:rustc-link-lib={}", lib);
+        }
+        for system_lib in &dependency.system_libs {
+            println!("cargo:rustc-link-lib={}", system_lib);
+        }
+    }
 }
