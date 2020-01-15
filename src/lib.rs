@@ -205,7 +205,7 @@ pub struct InstallArguments {
 
 impl InstallArguments {
     pub fn to_commandline_arguments(&self) -> Vec<String> {
-        let mut result = Vec::<String>::new();
+        let mut result = vec!["install".into()];
 
         match &self.install_target {
             InstallTarget::ConanFile { path, reference } => {
@@ -415,7 +415,7 @@ impl Conan {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct DependencyInfo {
     pub name: String,
     pub version: String,
@@ -439,7 +439,7 @@ pub struct DependencyInfo {
     pub cppflags: Vec<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct ConanBuildInfo {
     pub deps_env_info: HashMap<String, Vec<String>>,
     pub deps_user_info: HashMap<String, HashMap<String, String>>,
@@ -456,4 +456,34 @@ impl ConanBuildInfo {
     pub fn create_from_json_reader(reader: impl std::io::Read) -> ConanBuildInfo {
         serde_json::from_reader(reader).unwrap()
     }
+
+    pub fn find_dependency(&self, name: &str) -> Option<&DependencyInfo> {
+        self.dependencies.iter().find(|d| d.name == name)
+    }
+}
+
+#[test]
+fn test_install() {
+    let conan = Conan::find_system_conan().unwrap();
+    let mut builder = InstallArgumentsBuilder::new(
+        InstallTarget::Package {
+            reference: "zlib/1.2.11@conan/stable".into(),
+        },
+        "temp".into(),
+    );
+    builder
+        .build_configurations(vec![BuildConfiguration::Missing])
+        .generators(vec![Generator::JSON]);
+    conan
+        .create_install_command(&builder.build())
+        .spawn()
+        .unwrap()
+        .wait()
+        .unwrap();
+    let build_info_file = std::fs::File::open("temp/conanbuildinfo.json").unwrap();
+    let build_info =
+        ConanBuildInfo::create_from_json_reader(std::io::BufReader::new(build_info_file));
+    println!("{:?}", build_info);
+    let zlib = build_info.find_dependency("zlib").unwrap();
+    println!("{:?}", zlib);
 }
