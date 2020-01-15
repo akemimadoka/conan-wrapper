@@ -1,6 +1,6 @@
+use crate::ConanBuildInfo;
 use std::collections::HashMap;
 use std::env;
-use crate::ConanBuildInfo;
 
 lazy_static! {
     static ref CARGO_OS_TO_CONAN_OS: HashMap<&'static str, &'static str> = hashmap!(
@@ -32,6 +32,14 @@ pub fn cargo_arch_to_conan_arch(arch_name: &str) -> &str {
         .unwrap_or(&arch_name)
 }
 
+pub fn cargo_profile_to_conan_build_type(profile: &str) -> &str {
+    match profile {
+        "debug" => "Debug",
+        "release" => "Release",
+        _ => profile,
+    }
+}
+
 #[cfg(feature = "cargo")]
 pub fn auto_detect_settings_from_cargo() -> HashMap<String, String> {
     let mut result = HashMap::new();
@@ -42,6 +50,13 @@ pub fn auto_detect_settings_from_cargo() -> HashMap<String, String> {
 
     if let Ok(arch) = env::var("CARGO_CFG_TARGET_ARCH") {
         result.insert("arch".into(), cargo_arch_to_conan_arch(&arch).into());
+    }
+
+    if let Ok(profile) = env::var("PROFILE") {
+        result.insert(
+            "build_type".into(),
+            cargo_profile_to_conan_build_type(profile.as_str()).into(),
+        );
     }
 
     result
