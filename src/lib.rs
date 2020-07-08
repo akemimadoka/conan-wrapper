@@ -196,10 +196,14 @@ pub struct InstallArguments {
     pub no_imports: bool,
     pub build_configurations: Vec<BuildConfiguration>,
     pub envs: HashMap<String, String>,
+    pub envs_build: HashMap<String, String>,
     pub options: HashMap<String, String>,
+    pub options_build: HashMap<String, String>,
     pub profile: Option<String>,
+    pub profile_build: Option<String>,
     pub remote: Option<String>,
     pub settings: HashMap<String, String>,
+    pub settings_build: HashMap<String, String>,
     pub check_update: bool,
 }
 
@@ -258,14 +262,29 @@ impl InstallArguments {
             result.push(format!("{}={}", env_key, env_value));
         }
 
+        for (env_key, env_value) in &self.envs_build {
+            result.push("-e:b".into());
+            result.push(format!("{}={}", env_key, env_value));
+        }
+
         for (option_key, option_value) in &self.options {
             result.push("-o".into());
+            result.push(format!("{}={}", option_key, option_value));
+        }
+
+        for (option_key, option_value) in &self.options_build {
+            result.push("-o:b".into());
             result.push(format!("{}={}", option_key, option_value));
         }
 
         if let Some(profile) = &self.profile {
             result.push("-pr".into());
             result.push(profile.clone());
+        }
+
+        if let Some(profile_build) = &self.profile_build {
+            result.push("-pr:b".into());
+            result.push(profile_build.clone());
         }
 
         if let Some(remote) = &self.remote {
@@ -275,6 +294,11 @@ impl InstallArguments {
 
         for (setting_key, setting_value) in &self.settings {
             result.push("-s".into());
+            result.push(format!("{}={}", setting_key, setting_value));
+        }
+
+        for (setting_key, setting_value) in &self.settings_build {
+            result.push("-s:b".into());
             result.push(format!("{}={}", setting_key, setting_value));
         }
 
@@ -293,10 +317,14 @@ pub struct InstallArgumentsBuilder {
     no_imports: bool,
     build_configurations: Vec<BuildConfiguration>,
     envs: HashMap<String, String>,
+    envs_build: HashMap<String, String>,
     options: HashMap<String, String>,
+    options_build: HashMap<String, String>,
     profile: Option<String>,
+    profile_build: Option<String>,
     remote: Option<String>,
     settings: HashMap<String, String>,
+    settings_build: HashMap<String, String>,
     check_update: bool,
 }
 
@@ -309,10 +337,14 @@ impl InstallArgumentsBuilder {
             no_imports: false,
             build_configurations: vec![BuildConfiguration::All],
             envs: HashMap::new(),
+            envs_build: HashMap::new(),
             options: HashMap::new(),
+            options_build: HashMap::new(),
             profile: None,
+            profile_build: None,
             remote: None,
             settings: HashMap::new(),
+            settings_build: HashMap::new(),
             check_update: false,
         }
     }
@@ -340,23 +372,43 @@ impl InstallArgumentsBuilder {
         self
     }
 
+    pub fn envs_build(&mut self, value: HashMap<String, String>) -> &mut InstallArgumentsBuilder {
+        self.envs_build = value;
+        self
+    }
+
     pub fn options(&mut self, value: HashMap<String, String>) -> &mut InstallArgumentsBuilder {
         self.options = value;
         self
     }
 
+    pub fn options_build(&mut self, value: HashMap<String, String>) -> &mut InstallArgumentsBuilder {
+        self.options_build = value;
+        self
+    }
+
     pub fn profile(&mut self, value: String) -> &mut InstallArgumentsBuilder {
-        self.profile = Option::from(value);
+        self.profile = Some(value);
+        self
+    }
+
+    pub fn profile_build(&mut self, value: String) -> &mut InstallArgumentsBuilder {
+        self.profile_build = Some(value);
         self
     }
 
     pub fn remote(&mut self, value: String) -> &mut InstallArgumentsBuilder {
-        self.remote = Option::from(value);
+        self.remote = Some(value);
         self
     }
 
     pub fn settings(&mut self, value: HashMap<String, String>) -> &mut InstallArgumentsBuilder {
         self.settings = value;
+        self
+    }
+
+    pub fn settings_build(&mut self, value: HashMap<String, String>) -> &mut InstallArgumentsBuilder {
+        self.settings_build = value;
         self
     }
 
@@ -373,10 +425,14 @@ impl InstallArgumentsBuilder {
             no_imports: self.no_imports,
             build_configurations: self.build_configurations,
             envs: self.envs,
+            envs_build: self.envs_build,
             options: self.options,
+            options_build: self.options_build,
             profile: self.profile,
+            profile_build: self.profile_build,
             remote: self.remote,
             settings: self.settings,
+            settings_build: self.settings_build,
             check_update: self.check_update,
         }
     }
@@ -394,14 +450,31 @@ fn test_install_arguments() {
     builder
         .envs(hashmap!(
             "SomeEnv".into() => "SomeValue".into(),
-            "SomeEnv2".into() => "SomeValue2".into()))
+            "SomeEnv2".into() => "SomeValue2".into()
+        ))
+        .envs_build(hashmap!(
+            "SomeBuildEnv".into() => "SomeBuildValue".into(),
+            "SomeBuildEnv2".into() => "SomeBuildValue2".into()
+        ))
         .generators(vec![Generator::JSON])
         .options(hashmap!(
             "SomeOpt".into() => "SomeValue".into(),
-            "SomeOpt2".into() => "SomeValue2".into()))
+            "SomeOpt2".into() => "SomeValue2".into()
+        ))
+        .options_build(hashmap!(
+            "SomeBuildOpt".into() => "SomeBuildValue".into(),
+            "SomeBuildOpt2".into() => "SomeBuildValue2".into()
+        ))
         .settings(hashmap!(
             "SomeSetting".into() => "SomeValue".into(),
-            "SomeSetting2".into() => "SomeValue2".into()));
+            "SomeSetting2".into() => "SomeValue2".into()
+        ))
+        .settings(hashmap!(
+            "SomeBuildSetting".into() => "SomeBuildValue".into(),
+            "SomeBuildSetting2".into() => "SomeBuildValue2".into()
+        ))
+        .profile("android".into())
+        .profile_build("gcc".into());
     let arguments = builder.build();
     println!("{:?}", arguments);
     println!("{:?}", arguments.to_commandline_arguments());
@@ -449,12 +522,12 @@ pub struct ConanBuildInfo {
 }
 
 impl ConanBuildInfo {
-    pub fn create_from_json(json_content: &str) -> ConanBuildInfo {
-        serde_json::from_str(json_content).unwrap()
+    pub fn create_from_json(json_content: &str) -> Option<ConanBuildInfo> {
+        serde_json::from_str(json_content).ok()
     }
 
-    pub fn create_from_json_reader(reader: impl std::io::Read) -> ConanBuildInfo {
-        serde_json::from_reader(reader).unwrap()
+    pub fn create_from_json_reader(reader: impl std::io::Read) -> Option<ConanBuildInfo> {
+        serde_json::from_reader(reader).ok()
     }
 
     pub fn find_dependency(&self, name: &str) -> Option<&DependencyInfo> {
@@ -467,7 +540,7 @@ fn test_install() {
     let conan = Conan::find_system_conan().unwrap();
     let mut builder = InstallArgumentsBuilder::new(
         InstallTarget::Package {
-            reference: "zlib/1.2.11@conan/stable".into(),
+            reference: "zlib/1.2.11@_/_".into(),
         },
         "temp".into(),
     );
@@ -482,7 +555,7 @@ fn test_install() {
         .unwrap();
     let build_info_file = std::fs::File::open("temp/conanbuildinfo.json").unwrap();
     let build_info =
-        ConanBuildInfo::create_from_json_reader(std::io::BufReader::new(build_info_file));
+        ConanBuildInfo::create_from_json_reader(std::io::BufReader::new(build_info_file)).unwrap();
     println!("{:?}", build_info);
     let zlib = build_info.find_dependency("zlib").unwrap();
     println!("{:?}", zlib);
