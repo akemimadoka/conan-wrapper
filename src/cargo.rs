@@ -32,6 +32,7 @@ pub fn cargo_arch_to_conan_arch(arch_name: &str) -> &str {
         .unwrap_or(&arch_name)
 }
 
+#[cfg(feature = "cargo")]
 pub fn cargo_profile_to_conan_build_type(profile: &str) -> &str {
     match profile {
         "debug" => "Debug",

@@ -469,7 +469,7 @@ fn test_install_arguments() {
             "SomeSetting".into() => "SomeValue".into(),
             "SomeSetting2".into() => "SomeValue2".into()
         ))
-        .settings(hashmap!(
+        .settings_build(hashmap!(
             "SomeBuildSetting".into() => "SomeBuildValue".into(),
             "SomeBuildSetting2".into() => "SomeBuildValue2".into()
         ))
